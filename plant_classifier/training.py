@@ -3,8 +3,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from plant_classifier.model import CustomCNN
+from model import CustomCNN
 import os
+import pillow_avif
+
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # Adjust paths
 train_dir = "E:/8semproject/dataset_split/train"
@@ -28,10 +32,19 @@ transform = transforms.Compose([
     transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 ])
 
+from PIL import Image
+
+def safe_loader(path):
+    try:
+        return Image.open(path).convert('RGB')  # force RGB
+    except Exception as e:
+        print(f"⚠ Skipping image {path}: {e}")
+        return None
 
 # Datasets
-train_data = datasets.ImageFolder(train_dir, transform=transform)
-val_data = datasets.ImageFolder(val_dir, transform=transform)
+train_data = datasets.ImageFolder(train_dir, transform=transform, loader=safe_loader)
+val_data = datasets.ImageFolder(val_dir, transform=transform, loader=safe_loader)
+
 
 train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_data, batch_size=batch_size)

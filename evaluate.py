@@ -4,7 +4,7 @@ from torchvision import transforms
 from sklearn.metrics import classification_report, confusion_matrix
 import pandas as pd
 import os
-from model import CustomCNN
+from plant_classifier.model import CustomCNN
 from torchvision.datasets import ImageFolder
 
 # ------------------ Custom Dataset to return paths ------------------

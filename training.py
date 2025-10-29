@@ -3,9 +3,14 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from plant_classifier.model import CustomCNN
+from model import CustomCNN
 import os
 import pillow_avif
+
+#to hide warning
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 
 
 # Adjust paths

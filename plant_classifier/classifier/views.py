@@ -6,7 +6,7 @@ from django.shortcuts import render
 import os
 
 # import your CNN architecture
-from model import CustomCNN  # ensure same class name as in model.py
+from plant_classifier.model import CustomCNN  # ensure same class name as in model.py
 
 device = torch.device("cpu")
 
