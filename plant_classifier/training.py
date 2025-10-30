@@ -32,14 +32,18 @@ transform = transforms.Compose([
     transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 ])
 
+
 from PIL import Image
 
 def safe_loader(path):
+    """Safely load images, skipping corrupted or unsupported ones."""
     try:
-        return Image.open(path).convert('RGB')  # force RGB
+        with Image.open(path) as img:
+            return img.convert("RGB")
     except Exception as e:
-        print(f"⚠ Skipping image {path}: {e}")
+        print(f"⚠️ Skipping corrupted image: {path} ({e})")
         return None
+
 
 # Datasets
 train_data = datasets.ImageFolder(train_dir, transform=transform, loader=safe_loader)

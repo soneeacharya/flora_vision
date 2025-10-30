@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class CustomCNN(nn.Module):
-    def __init__(self, num_classes=12, input_size=(128, 128)):
+    def __init__(self, num_classes=11, input_size=(128, 128)):
         super(CustomCNN, self).__init__()
 
         # Convolutional blocks
