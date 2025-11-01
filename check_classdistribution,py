@@ -1,0 +1,9 @@
+from collections import Counter
+import os
+
+train_dir = "E:/8semproject/dataset_split/train"
+
+for folder in os.listdir(train_dir):
+    path = os.path.join(train_dir, folder)
+    if os.path.isdir(path):
+        print(folder, ":", len(os.listdir(path)))

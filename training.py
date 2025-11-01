@@ -18,9 +18,9 @@ train_dir = "E:/8semproject/dataset_split/train"
 val_dir = "E:/8semproject/dataset_split/val"
 
 # Hyperparameters
-batch_size = 32
-epochs = 10
-learning_rate = 0.001
+batch_size = 64
+epochs = 30
+learning_rate = 5e-4   #or 0.001
 image_size = 128
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -32,7 +32,11 @@ transform = transforms.Compose([
     transforms.RandomRotation(15),               # rotate ±15 degrees
     transforms.ColorJitter(0.2, 0.2, 0.2),      # random brightness/contrast/saturation
     transforms.ToTensor(),
-    transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+#adding extra to improve data augmentation
+    transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
+    transforms.RandomVerticalFlip(),
+
 ])
 
 from PIL import Image
@@ -61,13 +65,14 @@ model = CustomCNN(num_classes=len(classes), input_size=(image_size, image_size))
 criterion = nn.CrossEntropyLoss()
 
 # ----------------- Optimizer & Scheduler -----------------
-optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)  
+optimizer = optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-4)  
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)  
 # StepLR reduces LR by 0.5 every 5 epochs for smoother convergence
 
 # ----------------- Training Loop with Early Stopping -----------------
 best_val_acc = 0.0
 patience, patience_counter = 5, 0  # stop if no improvement for 5 epochs
+train_losses, val_losses = [], []
 
 for epoch in range(epochs):
     model.train()
@@ -124,5 +129,15 @@ for epoch in range(epochs):
         if patience_counter >= patience:
             print("⏹ Early stopping triggered. No improvement for", patience, "epochs.")
             break
-
+train_losses.append(running_loss/len(train_loader))
+val_losses.append(val_loss/len(val_loader)) 
 print("Training completed. Best Validation Accuracy:", best_val_acc)
+
+
+
+
+import matplotlib.pyplot as plt
+plt.plot(train_losses, label='Train Loss')
+plt.plot(val_losses, label='Val Loss')
+plt.legend()
+plt.show()
