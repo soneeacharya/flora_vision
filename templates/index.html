@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>🌿 Plant Detection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🌸 Plant Species Classifier</h1>
+        <p class="subtitle">Upload a flower image to identify its species</p>
+
+        <form action="/predict" method="POST" enctype="multipart/form-data" id="upload-form">
+            <div class="upload-box" id="drop-area" onclick="document.getElementById('fileInput').click()">
+                <p>📸 Drag & drop your image here or click to browse</p>
+                <input type="file" name="file" id="fileInput" accept="image/*" required onchange="previewImage(event)">
+                <img id="preview" src="#" alt="Preview" style="display:none;">
+            </div>
+            <button type="submit">🌿 Detect Plant</button>
+        </form>
+
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+    </div>
+
+    <script>
+        const dropArea = document.getElementById("drop-area");
+        const fileInput = document.getElementById("fileInput");
+
+        // Handle drag-over visual
+        dropArea.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            dropArea.classList.add("dragover");
+        });
+
+        dropArea.addEventListener("dragleave", () => {
+            dropArea.classList.remove("dragover");
+        });
+
+        // Handle dropped file
+        dropArea.addEventListener("drop", (e) => {
+            e.preventDefault();
+            dropArea.classList.remove("dragover");
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                previewImage({ target: { files: e.dataTransfer.files } });
+            }
+        });
+
+        // Preview function
+        function previewImage(event) {
+            const preview = document.getElementById('preview');
+            preview.src = URL.createObjectURL(event.target.files[0]);
+            preview.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

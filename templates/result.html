@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Prediction Result</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container result">
+        <h1>🌿 Prediction Result</h1>
+        <img src="{{ image_path }}" alt="Uploaded Image" class="result-img">
+
+        <div class="prediction-box">
+            <h2>{{ prediction }}</h2>
+            <p>Confidence: {{ '%.2f'|format(confidence) }}%</p>
+        </div>
+
+        <a href="/" class="back-btn">🔙 Try Another Image</a>
+    </div>
+</body>
+</html>
