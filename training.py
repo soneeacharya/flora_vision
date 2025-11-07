@@ -1,88 +1,103 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import datasets, transforms
 from model import CustomCNN
 import os
+from PIL import Image
 import pillow_avif
-
-#to hide warning
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
-
-
-# Adjust paths
+# ----------------- PATHS -----------------
 train_dir = "E:/8semproject/dataset_split/train"
 val_dir = "E:/8semproject/dataset_split/val"
 
-# Hyperparameters
-batch_size = 64
-epochs = 30
-learning_rate = 5e-4   #or 0.001
+# ----------------- HYPERPARAMETERS -----------------
+batch_size = 32
+epochs = 50
+learning_rate = 0.001
 image_size = 128
+patience = 5
 
+
+# ----------------- DEVICE -----------------
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
-# Transforms
+
+# ----------------- TRANSFORMS -----------------
 transform = transforms.Compose([
     transforms.Resize((image_size, image_size)),
-    transforms.RandomHorizontalFlip(),           # flip images to generalize
-    transforms.RandomRotation(15),               # rotate ±15 degrees
-    transforms.ColorJitter(0.2, 0.2, 0.2),      # random brightness/contrast/saturation
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomRotation(15),
+    transforms.ColorJitter(0.2, 0.2, 0.2),
     transforms.ToTensor(),
-    transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
-#adding extra to improve data augmentation
-    transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
-    transforms.RandomVerticalFlip(),
-
+    transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 ])
 
-from PIL import Image
-
+# ----------------- SAFE LOADER -----------------
 def safe_loader(path):
     try:
-        return Image.open(path).convert('RGB')  # force RGB
+        with Image.open(path) as img:
+            return img.convert("RGB")
     except Exception as e:
-        print(f"⚠ Skipping image {path}: {e}")
+        print(f"⚠ Skipping corrupted image: {path} ({e})")
         return None
 
-# Datasets
+# ----------------- DATASETS -----------------
 train_data = datasets.ImageFolder(train_dir, transform=transform, loader=safe_loader)
 val_data = datasets.ImageFolder(val_dir, transform=transform, loader=safe_loader)
 
+# Handle class imbalance with WeightedRandomSampler
+targets = [label for _, label in train_data.samples]
+class_counts = torch.bincount(torch.tensor(targets))
+class_weights = 1. / class_counts.float()
+sample_weights = [class_weights[label] for label in targets]
+sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
 
-train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+train_loader = DataLoader(train_data, batch_size=batch_size, sampler=sampler)
 val_loader = DataLoader(val_data, batch_size=batch_size)
 
-# Classes
 classes = train_data.classes
 print("Classes:", classes)
 
-# ----------------- Model -----------------
+# ----------------- MODEL -----------------
 model = CustomCNN(num_classes=len(classes), input_size=(image_size, image_size)).to(device)
+
+# ----------------- OPTIMIZER & LOSS -----------------
 criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
 
-# ----------------- Optimizer & Scheduler -----------------
-optimizer = optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-4)  
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)  
-# StepLR reduces LR by 0.5 every 5 epochs for smoother convergence
-
-# ----------------- Training Loop with Early Stopping -----------------
+# ----------------- RESUME TRAINING IF CHECKPOINT EXISTS -----------------
+start_epoch = 0
 best_val_acc = 0.0
-patience, patience_counter = 5, 0  # stop if no improvement for 5 epochs
-train_losses, val_losses = [], []
+checkpoint_path = "checkpoint.pth"
 
-for epoch in range(epochs):
+if os.path.exists(checkpoint_path):
+    print("🔄 Found checkpoint! Resuming training...")
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    best_val_acc = checkpoint["best_val_acc"]
+    start_epoch = checkpoint["epoch"] + 1
+    print(f"Resumed from epoch {start_epoch} with best val acc {best_val_acc:.2f}%")
+else:
+    print("🆕 Starting fresh training...")
+
+# ----------------- TRAINING LOOP -----------------
+patience_counter = 0
+for epoch in range(start_epoch, epochs):
     model.train()
     running_loss = 0.0
     correct, total = 0, 0
 
     for images, labels in train_loader:
         images, labels = images.to(device), labels.to(device)
-
         optimizer.zero_grad()
+
         outputs = model(images)
         loss = criterion(outputs, labels)
         loss.backward()
@@ -96,7 +111,7 @@ for epoch in range(epochs):
     train_acc = 100 * correct / total
     scheduler.step()
 
-    # ----------------- Validation -----------------
+    # ----------------- VALIDATION -----------------
     model.eval()
     val_loss, val_correct, val_total = 0.0, 0, 0
     with torch.no_grad():
@@ -104,7 +119,6 @@ for epoch in range(epochs):
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
             loss = criterion(outputs, labels)
-
             val_loss += loss.item()
             _, predicted = torch.max(outputs, 1)
             val_total += labels.size(0)
@@ -118,26 +132,25 @@ for epoch in range(epochs):
           f"Val Loss: {val_loss/len(val_loader):.4f} "
           f"Val Acc: {val_acc:.2f}%")
 
-    # ----------------- Early Stopping & Model Saving -----------------
+    # ----------------- SAVE CHECKPOINT -----------------
+    torch.save({
+        "epoch": epoch,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict(),
+        "best_val_acc": best_val_acc
+    }, checkpoint_path)
+
+    # ----------------- SAVE BEST MODEL -----------------
     if val_acc > best_val_acc:
         best_val_acc = val_acc
         patience_counter = 0
         torch.save(model.state_dict(), "best_model.pth")
-
+        print(f"💾 Saved new best model (Val Acc: {val_acc:.2f}%)")
     else:
         patience_counter += 1
         if patience_counter >= patience:
-            print("⏹ Early stopping triggered. No improvement for", patience, "epochs.")
+            print("⏹ Early stopping triggered — no improvement.")
             break
-train_losses.append(running_loss/len(train_loader))
-val_losses.append(val_loss/len(val_loader)) 
-print("Training completed. Best Validation Accuracy:", best_val_acc)
 
-
-
-
-import matplotlib.pyplot as plt
-plt.plot(train_losses, label='Train Loss')
-plt.plot(val_losses, label='Val Loss')
-plt.legend()
-plt.show()
+print("🎉 Training completed. Best Validation Accuracy:", best_val_acc)
